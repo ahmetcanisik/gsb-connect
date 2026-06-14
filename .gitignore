@@ -1,0 +1,12 @@
+# Rust build artifacts
+/target
+
+# Installer build output
+/installer/dist/
+
+# Local Claude Code settings
+/.claude/
+
+# OS / editor cruft
+Thumbs.db
+*.swp
