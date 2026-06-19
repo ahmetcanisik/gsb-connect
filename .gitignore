@@ -1,8 +1,14 @@
+# Frontend (Node / Vite)
+node_modules/
+dist/
+.vite/
+
 # Rust build artifacts
 /target
+src-tauri/target/
 
-# Installer build output
-/installer/dist/
+# Tauri generated mobile/desktop platform projects and schemas
+src-tauri/gen/
 
 # Local Claude Code settings
 /.claude/
@@ -10,3 +16,4 @@
 # OS / editor cruft
 Thumbs.db
 *.swp
+.DS_Store

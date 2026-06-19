@@ -1,0 +1,52 @@
+[package]
+name = "gsb-connect"
+version = "2.0.0"
+edition = "2021"
+description = "Login automation tool for the GSB WiFi captive portal with optional Cloudflare WARP support"
+authors = ["ahmetcanisik"]
+license = "MIT"
+repository = "https://github.com/ahmetcanisik/gsb-connect"
+# Reuse the existing optimized release profile from the project root workspace
+# is intentionally avoided: src-tauri is its own crate (Tauri convention).
+
+# A Tauri app that also targets mobile must be a library: the desktop binary
+# (`main.rs`) calls into it, and the mobile platforms link the `cdylib`/
+# `staticlib` produced here through the generated platform projects. Omitting
+# these crate types breaks `tauri android build`.
+[lib]
+name = "gsb_connect_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# The captive-portal login uses the blocking reqwest client (run on a background
+# thread, never on the async runtime). `rustls-tls` avoids a system OpenSSL
+# dependency, which matters for the Android cross-compile.
+reqwest = { version = "0.12", default-features = false, features = [
+    "blocking",
+    "rustls-tls",
+] }
+
+# Windows-only: minimal raw Win32 bindings. `secret_store` uses the DPAPI
+# (credential encryption) features; `autostart` uses the registry feature. Only
+# the features actually called are enabled to keep the dependency lightweight.
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Security_Cryptography",
+    "Win32_System_Registry",
+] }
+
+[profile.release]
+opt-level = "z"
+lto = true
+strip = true
+codegen-units = 1
+# `panic = "abort"` is intentionally NOT set here: some Tauri mobile tooling and
+# unwinding-based plugins expect the default unwind behavior.

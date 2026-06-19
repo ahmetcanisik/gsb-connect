@@ -1,0 +1,43 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "GSB Connect",
+  "version": "2.0.0",
+  "identifier": "com.ahmetcanisik.gsbconnect",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:1420",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "GSB Connect",
+        "width": 760,
+        "height": 640,
+        "minWidth": 600,
+        "minHeight": 520,
+        "resizable": true,
+        "backgroundColor": "#1B1B1D"
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["nsis", "msi"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
+    "publisher": "GSB Connect Project",
+    "copyright": "Distributed under the MIT License.",
+    "shortDescription": "GSB WiFi login automation",
+    "longDescription": "Automates logging in to the GSB WiFi captive portal with your own credentials, with an optional step to enable Cloudflare WARP."
+  }
+}

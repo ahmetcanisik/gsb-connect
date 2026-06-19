@@ -1,45 +1,64 @@
 name: release
 
-# Build the Windows installer and publish it to a GitHub Release.
+# Build the GSB Connect Windows installer with the Tauri bundler and publish it
+# to a GitHub Release.
 #
-# Triggers on a version tag (e.g. v1.0.0). The installer is compiled in the
-# cloud with Inno Setup, renamed to gsb-connect-setup.exe, and attached to the
-# Release for that tag. Uses only the official actions/checkout action and tools
-# preinstalled on the windows-latest runner (Rust, Chocolatey, gh CLI).
+# Trigger policy (per project requirements):
+#   - Runs ONLY when the `main` branch is updated (push to main).
+#   - Never runs for pushes to `dev` or any other branch, and not for PRs.
+#   - `workflow_dispatch` is kept so a release can also be triggered manually.
+#
+# The release tag/name come from the `version` field in src-tauri/tauri.conf.json
+# (tauri-action substitutes __VERSION__). Bump that version to cut a new release;
+# pushing to main without a bump re-uses the same tag/release.
 
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  release:
     runs-on: windows-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build release binary
-        run: cargo build --release --locked
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Install Inno Setup
-        run: choco install innosetup --no-progress -y
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
 
-      - name: Compile installer
-        run: '& "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" installer\setup.iss'
+      - name: Cache Rust build
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
 
-      - name: Stage setup asset
-        run: Copy-Item installer\dist\*.exe gsb-connect-setup.exe
+      - name: Install frontend dependencies
+        run: npm install
 
-      - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/')
+      - name: Build and publish release
+        uses: tauri-apps/tauri-action@v0
         env:
-          GH_TOKEN: ${{ github.token }}
-        run: >
-          gh release create "$env:GITHUB_REF_NAME" gsb-connect-setup.exe
-          --title "GSB Connect $env:GITHUB_REF_NAME"
-          --notes "Windows installer for GSB Connect $env:GITHUB_REF_NAME. Installs gsb-connect.exe to Program Files with a Start Menu shortcut; no credentials are bundled. Unsigned freeware: SmartScreen may warn on first run."
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tagName: v__VERSION__
+          releaseName: "GSB Connect v__VERSION__"
+          releaseBody: >
+            Windows installer for GSB Connect. Installs to Program Files with a
+            Start Menu shortcut; no credentials are bundled. Unsigned freeware:
+            SmartScreen may warn on first run (More info -> Run anyway).
+          releaseDraft: false
+          prerelease: false
+          args: "--bundles nsis,msi"
+
+# Android (future): building a release APK/AAB needs an Android SDK/NDK + a
+# signing keystore stored in repository secrets. When that is ready, add a
+# separate `workflow_dispatch`-only job here (so the main-only rule is kept)
+# that runs `tauri android build` and uploads the signed artifact.

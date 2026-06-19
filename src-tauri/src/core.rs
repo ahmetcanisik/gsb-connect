@@ -13,10 +13,15 @@ use std::fmt::Write as _;
 use std::fs;
 use std::io;
 use std::path::PathBuf;
+// Subprocess execution (warp-cli) only exists on desktop; gated to match the
+// `#[cfg(desktop)]` WARP routines below so mobile builds do not reference it.
+#[cfg(desktop)]
 use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread::sleep;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use serde::Serialize;
 
 use crate::secret_store;
 
@@ -96,7 +101,12 @@ const MAX_JITTER_MS: u64 = 250;
 /// these English-named, data-only variants and lets the UI layer translate and
 /// format them. This keeps every user-facing string out of `core` (they live in
 /// the localization module) while the login/WARP behavior stays identical.
-#[derive(Clone, Debug)]
+/// Serialized to the frontend as `{ "kind": "VariantName", "data": <payload> }`
+/// (unit variants omit `data`). The React i18n layer switches on `kind` and
+/// fills `data` into the localized template — the same data-only, translate-in-
+/// the-UI contract the egui app used, now across the Tauri IPC boundary.
+#[derive(Clone, Debug, Serialize)]
+#[serde(tag = "kind", content = "data")]
 pub enum LogMsg {
     /// The HTTP client could not be built; carries the error text.
     HttpClientBuildFailed(String),
@@ -133,12 +143,9 @@ pub struct Credentials {
     pub password: String,
 }
 
-impl Credentials {
-    /// Returns `true` if both fields are non-empty (after trimming).
-    pub fn is_complete(&self) -> bool {
-        !self.tc.trim().is_empty() && !self.password.trim().is_empty()
-    }
-}
+// Note: credential completeness (`is_complete`) and TC masking (`mask_tc`) now
+// live in the frontend (`src/App.tsx` / `src/i18n.ts`), since those concerns are
+// purely about the on-screen form and its log lines.
 
 /// Resolves the full path to the per-user config file (without touching disk).
 ///
@@ -183,20 +190,20 @@ fn appdata_dir() -> io::Result<PathBuf> {
 }
 
 /// Returns the per-user directory that holds the config file (non-Windows
-/// development fallback): `~/.gsbconnect`.
-#[cfg(not(windows))]
+/// desktop development fallback): `~/.gsbconnect`.
+#[cfg(all(not(windows), not(target_os = "android"), not(target_os = "ios")))]
 fn config_dir() -> io::Result<PathBuf> {
     Ok(home_dir()?.join(".gsbconnect"))
 }
 
 /// Returns the previous non-Windows directory (`~/.gsbwifi`) for migration.
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_os = "android"), not(target_os = "ios")))]
 fn legacy_config_dir() -> io::Result<PathBuf> {
     Ok(home_dir()?.join(".gsbwifi"))
 }
 
 /// Resolves `$HOME`, the base for both the current and legacy directories.
-#[cfg(not(windows))]
+#[cfg(all(not(windows), not(target_os = "android"), not(target_os = "ios")))]
 fn home_dir() -> io::Result<PathBuf> {
     let home = std::env::var_os("HOME").ok_or_else(|| {
         io::Error::new(
@@ -205,6 +212,56 @@ fn home_dir() -> io::Result<PathBuf> {
         )
     })?;
     Ok(PathBuf::from(home))
+}
+
+// ---------------------------------------------------------------------------
+// Mobile (Android / iOS) config directory.
+//
+// On mobile the OS sandboxes each app and environment variables like `HOME` are
+// not usable for storage. Tauri resolves the per-app data directory at startup
+// (`app.path().app_data_dir()`) and injects it here once via [`init_mobile_dir`]
+// before any config read/write happens. There is no legacy location on mobile,
+// so the legacy directory equals the current one (migration becomes a no-op).
+// ---------------------------------------------------------------------------
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+mod mobile_dir {
+    use std::io;
+    use std::path::PathBuf;
+    use std::sync::OnceLock;
+
+    static DIR: OnceLock<PathBuf> = OnceLock::new();
+
+    pub fn init(dir: PathBuf) {
+        // First write wins; later calls (there should be none) are ignored.
+        let _ = DIR.set(dir);
+    }
+
+    pub fn get() -> io::Result<PathBuf> {
+        DIR.get().cloned().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "mobile config directory was not initialized",
+            )
+        })
+    }
+}
+
+/// Injects the OS-sandboxed per-app data directory resolved by Tauri. Called
+/// once from the Tauri `setup` hook on mobile before any config access.
+#[cfg(any(target_os = "android", target_os = "ios"))]
+pub fn init_mobile_dir(dir: PathBuf) {
+    mobile_dir::init(dir);
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn config_dir() -> io::Result<PathBuf> {
+    mobile_dir::get()
+}
+
+#[cfg(any(target_os = "android", target_os = "ios"))]
+fn legacy_config_dir() -> io::Result<PathBuf> {
+    mobile_dir::get()
 }
 
 /// Migrates a config from the legacy directory once, if present.
@@ -234,25 +291,12 @@ fn legacy_config_path() -> io::Result<PathBuf> {
     Ok(legacy_config_dir()?.join(CONFIG_FILE))
 }
 
-/// Returns the config file path as a display string for the UI/logs, falling
-/// back to the bare file name if the path cannot be resolved. Never creates
-/// anything and never exposes credential values.
-pub fn config_location() -> String {
-    match config_path() {
-        Ok(path) => path.display().to_string(),
-        Err(_) => CONFIG_FILE.to_string(),
-    }
-}
-
 /// The persisted application configuration loaded at startup.
 pub struct AppConfig {
-    /// Credentials for prefilling the GUI (empty if unset or placeholder).
+    /// Credentials for prefilling the UI (empty if unset or placeholder).
     pub creds: Credentials,
     /// Persisted language code (`tr` / `en`). Defaults to `tr`.
     pub language_code: String,
-    /// Persisted "start with Windows" preference. Defaults to `false`. The
-    /// caller reconciles this against the actual registry Run key on startup.
-    pub autostart: bool,
 }
 
 /// Loads the per-user config (credentials + language) for the GUI.
@@ -286,6 +330,9 @@ pub fn load_config() -> AppConfig {
         .clone()
         .unwrap_or_else(|| DEFAULT_LANGUAGE_CODE.to_string());
 
+    // Preserve any existing AUTOSTART value when we rewrite the file below
+    // (e.g. during encryption migration). The actual auto-start state shown in
+    // the UI comes from the OS (`autostart::is_enabled`), not this value.
     let autostart = read_autostart(&contents);
 
     let (creds, needs_migration) = if encrypted {
@@ -314,7 +361,6 @@ pub fn load_config() -> AppConfig {
     AppConfig {
         creds,
         language_code,
-        autostart,
     }
 }
 
@@ -600,6 +646,12 @@ fn url_encode(input: &str) -> String {
 }
 
 /// Returns `true` if `warp-cli` is available on the PATH.
+///
+/// Desktop-only: WARP is controlled through the `warp-cli` subprocess, which
+/// does not exist on mobile. The UI hides every WARP control on mobile, so this
+/// is never reached there; gating it keeps `std::process::Command` out of the
+/// mobile build entirely.
+#[cfg(desktop)]
 pub fn check_warp_installed() -> bool {
     Command::new("warp-cli")
         .arg("--version")
@@ -610,6 +662,9 @@ pub fn check_warp_installed() -> bool {
 
 /// Connects WARP if installed, otherwise reports platform-specific install
 /// hints. Returns `true` if WARP is installed and the connect succeeded.
+///
+/// Desktop-only (see [`check_warp_installed`]).
+#[cfg(desktop)]
 pub fn manage_warp(report: &dyn Fn(LogMsg)) -> bool {
     if check_warp_installed() {
         match Command::new("warp-cli").arg("connect").output() {
@@ -639,10 +694,4 @@ pub fn manage_warp(report: &dyn Fn(LogMsg)) -> bool {
     report(LogMsg::WarpInstallHint(install_hint.to_string()));
     report(LogMsg::WarpInstallFollowup);
     false
-}
-
-/// Masks a TC ID, showing the first three characters followed by asterisks.
-pub fn mask_tc(tc: &str) -> String {
-    let prefix: String = tc.chars().take(3).collect();
-    format!("{prefix}********")
 }
