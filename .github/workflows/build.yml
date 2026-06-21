@@ -117,7 +117,11 @@ jobs:
           java-version: "17"
       - uses: android-actions/setup-android@v3
       - name: Install Android NDK
-        run: sdkmanager "ndk;26.1.10909125"
+        run: |
+          sdkmanager "ndk;26.1.10909125"
+          # The `env` context can't read the runner's OS-level ANDROID_NDK_ROOT,
+          # so export the concrete NDK path for the later tauri steps.
+          echo "NDK_HOME=$ANDROID_HOME/ndk/26.1.10909125" >> "$GITHUB_ENV"
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android
@@ -127,12 +131,8 @@ jobs:
       - run: npm install
       - name: Generate Android platform project
         run: npm run tauri android init
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_ROOT }}
       - name: Build APK (unsigned release)
         run: npm run tauri android build -- --apk
-        env:
-          NDK_HOME: ${{ env.ANDROID_NDK_ROOT }}
       - name: Generate keystore and sign the APK
         run: |
           set -e
