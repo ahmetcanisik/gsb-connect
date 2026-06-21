@@ -131,6 +131,10 @@ jobs:
       - run: npm install
       - name: Generate Android platform project
         run: npm run tauri android init
+      - name: Apply app icon to the Android project
+        # init writes the project under src-tauri/gen/android; regenerate the
+        # launcher mipmaps there from the source SVG so the APK uses our icon.
+        run: npm run tauri icon app-icon.svg
       - name: Build APK (unsigned release)
         run: npm run tauri android build -- --apk
       - name: Generate keystore and sign the APK

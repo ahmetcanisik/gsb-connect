@@ -126,6 +126,9 @@ textarea {
   flex: 1 1 auto;
   min-width: 0;
   overflow-y: auto;
+  /* Always reserve the scrollbar gutter so navigating to a page that overflows
+     (e.g. Settings) does not shift the layout when the scrollbar appears. */
+  scrollbar-gutter: stable;
   padding: 20px;
   background: var(--bg-main);
 }
@@ -375,4 +378,159 @@ select:focus {
   cursor: pointer;
   font-weight: 700;
   font-size: 15px;
+}
+
+/* ---- Nav item icon / label (used by both desktop list and mobile rail) -- */
+
+.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  flex: 0 0 auto;
+  font-size: 16px;
+}
+
+.nav-label {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Icon-only mini buttons (mobile log header). */
+.btn-mini.icon {
+  width: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-mini svg {
+  display: block;
+}
+
+/* The rail hamburger only appears on mobile (see the mobile block below). */
+.rail-menu {
+  display: none;
+}
+
+/* ===== Mobile: navigation drawer, safe-area insets, compact log ========= */
+
+/* Anchor the absolutely-positioned rail / open drawer / scrim, and reserve a
+   fixed gutter for the collapsed rail so opening the drawer never reflows the
+   content (the drawer just widens over it). */
+.app.mobile .body-row {
+  position: relative;
+  padding-left: 60px;
+}
+
+/* System status-bar / notch clearance. max() keeps a sane minimum even if the
+   webview does not report safe-area insets. */
+.app.mobile .sidebar,
+.app.mobile .content {
+  padding-top: max(env(safe-area-inset-top), 24px);
+}
+.app.mobile .log-panel {
+  padding-bottom: max(env(safe-area-inset-bottom), 10px);
+}
+
+/* Collapsed icon rail: absolute within body-row (so it never covers the bottom
+   log panel), icons only. */
+.app.mobile .sidebar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 60px;
+  flex: none;
+  z-index: 30;
+  padding: max(env(safe-area-inset-top), 24px) 8px 12px;
+  overflow: hidden;
+  transition: width 0.2s ease;
+}
+
+.app.mobile .rail-menu {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 40px;
+  margin: 0 auto 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 20px;
+  cursor: pointer;
+}
+.app.mobile .rail-menu:hover {
+  background: var(--nav-hover);
+}
+
+/* Hide labels in the collapsed rail; center the icons. */
+.app.mobile .sidebar .brand,
+.app.mobile .sidebar .brand-sub,
+.app.mobile .sidebar .nav-label {
+  display: none;
+}
+.app.mobile .sidebar .nav-item {
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 auto;
+  padding: 0;
+}
+.app.mobile .sidebar .nav-icon {
+  width: auto;
+  font-size: 20px;
+}
+
+/* Open drawer: widen the same panel over the content; labels reappear. The
+   content keeps its 60px offset, so nothing below reflows. */
+.app.mobile.drawer-open .sidebar {
+  width: 230px;
+  padding-left: 14px;
+  padding-right: 14px;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.5);
+  overflow-y: auto;
+}
+.app.mobile.drawer-open .sidebar .brand,
+.app.mobile.drawer-open .sidebar .brand-sub,
+.app.mobile.drawer-open .sidebar .nav-label {
+  display: block;
+}
+.app.mobile.drawer-open .sidebar .nav-item {
+  justify-content: flex-start;
+  width: 100%;
+  height: 40px;
+  margin: 0;
+  padding: 0 12px;
+}
+.app.mobile.drawer-open .sidebar .nav-icon {
+  width: 20px;
+  font-size: 18px;
+}
+
+/* Dim the content behind the open drawer (confined to body-row, above the
+   log panel). Tapping it closes the drawer. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+/* Compact content + full-width actions so buttons never overflow. */
+.app.mobile .content {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+.app.mobile .headline {
+  font-size: 24px;
+}
+.app.mobile .btn,
+.app.mobile .btn.primary,
+.app.mobile .btn.secondary {
+  width: 100%;
+  min-width: 0;
 }

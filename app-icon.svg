@@ -1,0 +1,24 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <!-- GSB Connect app icon: a brand-blue rounded square with a white Wi-Fi
+       "signal" glyph (arcs + dot) that reads as "connect" at small sizes. -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1024" y2="1024" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#4a93f7"/>
+      <stop offset="0.55" stop-color="#2f7ef0"/>
+      <stop offset="1" stop-color="#1f63c8"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bg)"/>
+
+  <g fill="none" stroke="#ffffff" stroke-width="62" stroke-linecap="round">
+    <!-- outer arc -->
+    <path d="M 285.7 433.7 A 320 320 0 0 1 738.3 433.7"/>
+    <!-- middle arc -->
+    <path d="M 352.9 500.9 A 225 225 0 0 1 671.1 500.9"/>
+    <!-- inner arc -->
+    <path d="M 420.1 568.1 A 130 130 0 0 1 603.9 568.1"/>
+  </g>
+  <!-- signal source dot -->
+  <circle cx="512" cy="660" r="48" fill="#ffffff"/>
+</svg>

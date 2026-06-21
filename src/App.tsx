@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { type TouchEvent, useCallback, useEffect, useRef, useState } from "react";
 import type { UnlistenFn } from "@tauri-apps/api/event";
 
 import { api, events, isMobile } from "./api";
@@ -40,6 +40,10 @@ export default function App() {
   const [loginOk, setLoginOk] = useState(false);
   const [warpOk, setWarpOk] = useState(false);
   const [alert, setAlert] = useState<AlertState | null>(null);
+
+  // Mobile navigation drawer: collapsed to an icon rail by default; a right
+  // swipe (or the rail menu button) slides the labeled panel over the content.
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const t = makeT(lang);
 
@@ -157,12 +161,54 @@ export default function App() {
     }
   };
 
+  // Navigating (tapping a rail/drawer item) also closes the mobile drawer.
+  const navigate = (next: Nav) => {
+    setNav(next);
+    setDrawerOpen(false);
+  };
+
+  // ---- Touch swipe (mobile drawer) --------------------------------------
+  // A short right swipe starting near the left edge opens the drawer; a left
+  // swipe while it is open closes it. No-op on desktop (mobile === false).
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const onTouchStart = (e: TouchEvent) => {
+    const t0 = e.touches[0];
+    touchStart.current = { x: t0.clientX, y: t0.clientY };
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    const start = touchStart.current;
+    touchStart.current = null;
+    if (!mobile || !start) return;
+    const t1 = e.changedTouches[0];
+    const dx = t1.clientX - start.x;
+    const dy = t1.clientY - start.y;
+    if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy)) return; // not horizontal
+    if (dx > 0 && !drawerOpen && start.x < 48) setDrawerOpen(true);
+    else if (dx < 0 && drawerOpen) setDrawerOpen(false);
+  };
+
   // ---- Render -----------------------------------------------------------
 
   return (
-    <div className="app">
+    <div
+      className={
+        "app" + (mobile ? " mobile" : "") + (drawerOpen ? " drawer-open" : "")
+      }
+      onTouchStart={onTouchStart}
+      onTouchEnd={onTouchEnd}
+    >
       <div className="body-row">
-        <Sidebar nav={nav} setNav={setNav} t={t} />
+        <Sidebar
+          nav={nav}
+          setNav={navigate}
+          t={t}
+          mobile={mobile}
+          drawerOpen={drawerOpen}
+          onToggleDrawer={() => setDrawerOpen((o) => !o)}
+        />
+        {mobile && drawerOpen && (
+          <div className="scrim" onClick={() => setDrawerOpen(false)} />
+        )}
         <main className="content">
           {alert && (
             <Alert
@@ -210,6 +256,7 @@ export default function App() {
         busy={busy}
         loginOk={loginOk}
         warpOk={warpOk}
+        mobile={mobile}
         onToggle={() => setLogVisible((v) => !v)}
         onClear={() => setLog([])}
         onStop={stop}

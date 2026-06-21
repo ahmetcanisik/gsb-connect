@@ -40,6 +40,8 @@ const en: Record<string, string> = {
   log_label: "Log",
   log_panel_hide: "Hide log panel",
   log_panel_show: "Show log panel",
+  drawer_open: "Open menu",
+  drawer_close: "Close menu",
 
   settings_credentials_note:
     "Credentials are stored in a per-user config file (encrypted with Windows DPAPI on Windows).",
@@ -112,6 +114,8 @@ const tr: Record<string, string> = {
   log_label: "Günlük",
   log_panel_hide: "Günlük panelini gizle",
   log_panel_show: "Günlük panelini göster",
+  drawer_open: "Menüyü aç",
+  drawer_close: "Menüyü kapat",
 
   settings_credentials_note:
     "Kimlik bilgileri kullanıcıya özel bir yapılandırma dosyasında saklanır (Windows'ta Windows DPAPI ile şifrelenir).",
