@@ -45,6 +45,9 @@ jobs:
         with:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          # Only the platform bundles; skip e.g. the gitleaks SARIF artifact
+          # that the security job uploads (it must not become a release asset).
+          pattern: "{windows,linux,android}"
           path: artifacts
       - name: Publish release
         uses: softprops/action-gh-release@v2
