@@ -27,9 +27,12 @@ Tauri lets the same codebase target **desktop (Windows)** and **mobile
 branch.
 
 > Development happens on the `dev` branch. Releases are cut from `main`: pushing
-> to `main` triggers the [release workflow](.github/workflows/release.yml),
-> which builds the Windows installer and publishes it to a GitHub Release. No
-> other branch triggers any workflow.
+> to `main` triggers the [build workflow](.github/workflows/build.yml), which
+> runs security checks (gitleaks, `cargo audit`, `npm audit`) and then builds
+> Windows, Linux and Android. Only when that build succeeds does the
+> [release workflow](.github/workflows/release.yml) run (via `workflow_run`),
+> publishing all three platforms' artifacts to a GitHub Release. No other branch
+> triggers any workflow.
 
 ## Features
 

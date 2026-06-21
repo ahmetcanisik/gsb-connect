@@ -1,64 +1,62 @@
 name: release
 
-# Build the GSB Connect Windows installer with the Tauri bundler and publish it
-# to a GitHub Release.
+# Publishes the GSB Connect GitHub Release.
 #
 # Trigger policy (per project requirements):
-#   - Runs ONLY when the `main` branch is updated (push to main).
-#   - Never runs for pushes to `dev` or any other branch, and not for PRs.
-#   - `workflow_dispatch` is kept so a release can also be triggered manually.
+#   - Runs ONLY after the `build` workflow finishes SUCCESSFULLY on `main`
+#     (see the `workflow_run` trigger + the `conclusion == 'success'` guard).
+#   - It never builds anything itself: it downloads the artifacts produced by
+#     the triggering build run and attaches them to the Release. This guarantees
+#     the release contains exactly the binaries that passed the build and the
+#     security checks; if any build/security job failed, this workflow's `if`
+#     condition is false and nothing is published.
 #
-# The release tag/name come from the `version` field in src-tauri/tauri.conf.json
-# (tauri-action substitutes __VERSION__). Bump that version to cut a new release;
-# pushing to main without a bump re-uses the same tag/release.
+# NOTE: a `workflow_run`-triggered workflow always runs the copy of this file
+# that lives on the default branch (`main`). Both this file and `build.yml` must
+# be merged into `main` before any release can fire.
+#
+# The release tag/name come from the `version` field in src-tauri/tauri.conf.json.
+# Bump that version (and package.json / Cargo.toml) to cut a new release; pushing
+# to main without a bump updates the same tag/release.
 
 on:
-  push:
+  workflow_run:
+    workflows: ["build"]
+    types: [completed]
     branches: [main]
-  workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write     # to create the Release
+  actions: read       # to download artifacts from the triggering build run
 
 jobs:
   release:
-    runs-on: windows-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version: 20
-
-      - name: Set up Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Cache Rust build
-        uses: swatinem/rust-cache@v2
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Read version
+        id: ver
+        run: echo "version=$(jq -r .version src-tauri/tauri.conf.json)" >> "$GITHUB_OUTPUT"
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          workspaces: "./src-tauri -> target"
-
-      - name: Install frontend dependencies
-        run: npm install
-
-      - name: Build and publish release
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: artifacts
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
         with:
-          tagName: v__VERSION__
-          releaseName: "GSB Connect v__VERSION__"
-          releaseBody: >
-            Windows installer for GSB Connect. Installs to Program Files with a
-            Start Menu shortcut; no credentials are bundled. Unsigned freeware:
-            SmartScreen may warn on first run (More info -> Run anyway).
-          releaseDraft: false
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: GSB Connect v${{ steps.ver.outputs.version }}
+          body: >
+            Windows (NSIS/MSI), Linux (deb/AppImage) and Android (APK) builds.
+            Unsigned freeware: on Windows SmartScreen may warn on first run
+            (More info -> Run anyway). The Android APK is signed with a
+            CI-generated key, so updating across versions may require a reinstall.
+          files: artifacts/**/*
+          fail_on_unmatched_files: true
+          draft: false
           prerelease: false
-          args: "--bundles nsis,msi"
-
-# Android (future): building a release APK/AAB needs an Android SDK/NDK + a
-# signing keystore stored in repository secrets. When that is ready, add a
-# separate `workflow_dispatch`-only job here (so the main-only rule is kept)
-# that runs `tauri android build` and uploads the signed artifact.
